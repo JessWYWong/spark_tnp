@@ -127,7 +127,7 @@ def prepare(baseDir, particle, probe, resonance, era,
         },
         'mcEff': {
             'fitTypes': [],
-            'shiftTypes': ['tagIso', 'massBin', 'massRange']
+            'shiftTypes': []
         }
     }
 
