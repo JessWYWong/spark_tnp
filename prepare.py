@@ -87,24 +87,40 @@ def getSF(binName, fname):
     return sf, sf_err, dataEff, dataErr, mcEff, mcErr
 
 
-def getSyst(binName, datafname, dataEff, mcEff, fitTypes, shiftTypes):
+def getSyst(binName, fname, dataEff, mcEff, fitTypes, shiftTypes):
     syst = {}
     syst_sq = 0
+    mcSyst_sq = 0
+    combined = 0
     for isyst in fitTypes:
-        systfname = datafname.replace('Nominal', isyst)
+        systfname = fname.replace('Nominal', isyst)
         tmpEff, tmpErr = getDataEff(binName, systfname)
         syst.update({isyst: math.fabs(tmpEff - dataEff)})
         syst_sq += (tmpEff - dataEff)**2
 
     for isyst in shiftTypes:
-        systUpfname = datafname.replace('Nominal', isyst+'Up')
-        systDnfname = datafname.replace('Nominal', isyst+'Down')
-        tmpEffUp, tmpErr = getDataEff(binName, systUpfname)
-        tmpEffDn, tmpErr = getDataEff(binName, systDnfname)
-        syst.update({isyst: (math.fabs(tmpEffUp-tmpEffDn)/2)})
-        syst_sq += ((tmpEffUp-tmpEffDn)/2)**2
+        systUpfname = fname.replace('Nominal', isyst+'Up')
+        systDnfname = fname.replace('Nominal', isyst+'Down')
+        if dataEff >= 0:
+            tmpEffUp, tmpErr = getDataEff(binName, systUpfname)
+            tmpEffDn, tmpErr = getDataEff(binName, systDnfname)
+            syst_sq += ((tmpEffUp-tmpEffDn)/2)**2
+            syst.update({isyst: (math.fabs(tmpEffUp-tmpEffDn)/2)})
+        if mcEff >= 0:
+            genEffUp, tmpErr = getEff(binName, systUpfname)
+            genEffDn, tmpErr = getEff(binName, systDnfname)
+            mcSyst_sq = ((genEffUp-genEffDn)/2)**2
+            if not dataEff >= 0:
+                syst.update({isyst: (math.fabs(genEffUp-genEffDn)/2)})
 
-    syst.update({'combined': (syst_sq)**0.5})
+    if dataEff >= 0 and mcEff >= 0:
+        combined = ((dataEff / mcEff)**2 * (syst_sq / dataEff**2 + 
+                                            mcSyst_sq / mcEff**2))
+    elif dataEff >= 0:
+        combined = syst_sq
+    elif mcEff >= 0:
+        combined = mcSyst_sq    
+    syst.update({'combined': (combined)**0.5})
     return syst
 
 
@@ -127,7 +143,7 @@ def prepare(baseDir, particle, probe, resonance, era,
         },
         'mcEff': {
             'fitTypes': [],
-            'shiftTypes': []
+            'shiftTypes': ['tagIso', 'massBin', 'massRange']
         }
     }
 
@@ -228,11 +244,11 @@ def prepare(baseDir, particle, probe, resonance, era,
                           systList['SF']['fitTypes'],
                           systList['SF']['shiftTypes'])
         dataSyst = getSyst(binName, dataFNameFit,
-                           dataEff, mcEff,
+                           dataEff, -1,
                            systList['dataEff']['fitTypes'],
                            systList['dataEff']['shiftTypes'])
         mcSyst = getSyst(binName, dataFNameFit,
-                         dataEff, mcEff,
+                         -1, mcEff,
                          systList['mcEff']['fitTypes'],
                          systList['mcEff']['shiftTypes'])
         sf_err = (sf_stat**2 + sf_syst['combined']**2)**0.5
